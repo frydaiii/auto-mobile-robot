@@ -1,0 +1,160 @@
+# Auto Mobile Robot
+
+A low-cost indoor mobile robot built with parts available in Vietnam, focused on **automatic charger docking** and **failure detection and recovery**. Mapping supports those goals. Hardware preparation is the current workstream; software simulation is a separate workstream.
+
+**Status:** component selection and hardware qualification. This README records the proposed build and supplied supplier quotes; it does not claim that the hardware, firmware, docking, or charging system has been validated.
+
+## Goals
+
+- Detect a low battery, reach the charging station, align with it, and confirm charging.
+- Detect motion failures, collisions, and communication loss; stop safely and attempt bounded recovery when appropriate.
+- Use a two-wheel differential-drive platform with a caster, wheel encoders, and inexpensive sensors.
+- Keep the prototype affordable and practical to source in Vietnam.
+
+The first milestone is a dependable drive and power platform with useful fault telemetry. Docking depends on that foundation. A detailed map alone does not prove that the robot can dock or recover reliably.
+
+## Current configuration
+
+| Subsystem | Current choice | Qualification still required |
+| --- | --- | --- |
+| Controller | ESP32-S3, already owned | Exact development-board pinout and power arrangement |
+| Higher-level autonomy | Laptop for initial development | Communication protocol and loss-of-link behavior |
+| Drive | Two JGA25-370 brushed DC motors, 12V, approximately 60RPM, A/B encoders | Actual stall current, encoder signals, cables, and mechanical fit |
+| Motor driver | One MKE-M18, two channels, I²C | Combined motor load, thermal behavior, and command-timeout stopping |
+| Mechanics | Two 65mm drive wheels, shaft adapters, GA25 brackets, 25mm caster | Chassis layout, mounting heights, bumper travel, and fabrication quotes |
+| Battery | Provisional protected 3S 3000mAh Li-ion pack | Current capacity, connectors, protection behavior, and charger compatibility |
+| Logic power | XL4015 buck, adjusted to 5V | Output stability and ESP32 board power connection |
+| Feedback | Two INA240A1 modules, INA226, MPU6050, two VL53L0X sensors, three bumper switches | Shunts, signal levels, calibration, addresses, and mounting |
+| Charging station | Undecided | Dock guidance, contacts, alignment, charge detection, and electrical integration |
+| Mapping | Supporting capability; sensor undecided | Sensor choice and minimum navigation requirements |
+
+**Recorded selection changes:** MKE-M18 replaces XY-160D at BOM ID 10. MPU6050 GY-521 replaces ICM-42688 at BOM ID 17; the BOM takes precedence over the older IMU reference in the brief.
+
+## System responsibilities
+
+The intended split is:
+
+- **ESP32-S3:** motor commands, encoder acquisition, sensor acquisition, local stop behavior, and fault reporting.
+- **Laptop:** initial navigation, docking decisions, recovery coordination, and logging.
+- **Power hardware:** battery protection, fusing, motor-power disconnection, and regulated logic power.
+
+This is a target architecture, not an implemented interface. Motor stopping on lost commands must be demonstrated independently of laptop navigation. The driver's own behavior when ESP32 communication fails also needs verification.
+
+## Hardware bill of materials
+
+Prices below are the **last supplied quotes**, in VND per unit or set, excluding delivery. Links are supplier references, not confirmation of current stock, specifications, or price. `QUOTE` means a fabrication drawing and supplier quote are still required.
+
+The maintained spreadsheet format is TSV with these columns, in this order: `Id`, `Component`, `Name`, `Quantity`, `URL`, `Price`, `Note`. Keep IDs stable when changing a component. Multiple URLs in one cell are separated by semicolons.
+
+| Id | Component | Name | Quantity | URL | Price | Note |
+| --- | --- | --- | ---: | --- | ---: | --- |
+| 1 | Controller | ESP32-S3 | 1 | [Reference](https://www.espressif.com/en/products/socs/esp32-s3) | 0 | Already owned; reference URL, not a purchase listing. |
+| 2 | Motor | JGA25-370 12V 60RPM with A/B encoder | 2 | [Đức Huy](https://dientuduchuy.com/products/jga25-370-12v-dong-co-dc-giam-toc-12vdc-60rpm-co-encoder-hoi-tiep-toc-do-vi-tri) | 163000 | Candidate SKU K9_55. Exact stall current unverified; confirm included encoder cables. |
+| 3 | Motor bracket | 25mm metal motor mounting bracket | 2 | [Hshop](https://hshop.vn/Ga-bat-kim-loai-cho-dong-co-duong-kinh-25mm) | 20000 | Check mounting-hole alignment with motor and chassis. |
+| 4 | Drive wheel | 65mm rubber wheel with 12mm hex mounting | 2 | [Hshop](https://hshop.vn/Banh-xe-robot-lop-cao-su-65mm-khop-luc-giac-12mm) | 45000 | Requires shaft adapters in ID 5. |
+| 5 | Shaft adapter | 4mm motor shaft to 12mm hex adapter | 2 | [Hshop](https://hshop.vn/khop-noi-luc-giac-truc-dong-co-4mm-kich-thuoc-12x18mm-hexagon-motor-coupling) | 20000 | Confirm motor shaft diameter and usable shaft length. |
+| 6 | Caster | 25mm PP swivel caster | 1 | [Hshop](https://hshop.vn/banh-xe-xoay-da-huong-bang-nhua-pp-25mm-caster-wheel) | 15000 | Mounting height must keep chassis level with drive wheels. |
+| 7 | Chassis | Custom 250–300mm chassis plate | 1 | [Fabrication service](https://imaker.vn/dich-vu-in-3d-cat-laser-mica) | QUOTE | Drawing, material thickness, and quote pending. |
+| 8 | Mounting hardware | M3 brass standoff assortment including screws and nuts | 1 | [Supplier](https://laptrinhnhunga-z.com/san-pham/lap-trinh-nhung-a-zg6-combo-hop-tru-cot-dong-hinh-luc-giac-m3-nhieu-loai/) | 135000 | One assortment box; choose suitable screw lengths during assembly. |
+| 9 | Battery straps | 25cm battery strap | 2 | [Supplier](https://maybayrc.vn/day-buoc-pin-20cm-25cm?variantid=66672369) | 3760 | Per strap; select single 25cm variant and confirm fit. |
+| 10 | Motor driver | MKE-M18 BD62130 I2C Motor Driver Module | 1 | [Hshop](https://hshop.vn/mach-dieu-khien-dong-co-dc-mke-m18-bd62130-i2c-motor-driver-module) | 165000 | Replaces XY-160D. Two channels; motor supply 8–13V; listed as 3.3V-compatible I²C. Advertised 3A/channel; chip recommended DC maximum is 2.4A, subject to cooling. Test motor current and timeout stopping. |
+| 11 | Battery | MTM 3S 3000mAh protected Li-ion pack | 1 | [Supplier](https://maybommini.vn/?product=khoi-pin-sac-li-ion-12v-3-0ah-10a-3s-mtm-jack-nguon-dc-5-5x21mm) | 220000 | Provisional; advertised 5A continuous/10A peak. Confirm combined demand. Supplied DC connector needs XT60 adaptation at extra cost. |
+| 12 | Charger | 3S Li-ion 12.6V 2A CC/CV charger | 1 | [Supplier](https://dientutuonglai.com/adapter-sac-pin-3s-126v-2a.html) | 70000 | Confirm charge-current compatibility, connector dimensions, and polarity with final battery. |
+| 13 | Logic power supply | XL4015 adjustable buck converter | 1 | [Hshop](https://hshop.vn/mach-giamop-dc-xl4015-5a-cu-chinh-dung) | 45000 | Set and measure output at 5V before connecting electronics. |
+| 14 | Battery monitor | CJMCU-226 INA226 | 1 | [Supplier](https://dientutuyetnga.com/products/cjmcu-226-cam-bien-dong-ina226) | 63000 | Check shunt resistance and total-current range; replacement/calibration may be needed. Use an I²C address different from MKE-M18 default 0x40. |
+| 15 | Motor current sensor | INA240A1 module | 2 | [Supplier](https://www.thegioiic.com/ina240a1-mach-cam-bien-dong-20v-v) | 111720 | Previously out of stock. One per motor; supplied 0.1Ω shunt needs modification. Configure bidirectional reference and ESP32 ADC scaling. |
+| 16 | Shunt resistors | 0.01Ω 2512 3W 1%; pack of 5 | 1 | [Supplier](https://linhkien.cxtvn.com/8825-dien-tro-001r-2512-3w-1-5c.html) | 5000 | Five resistors per pack; confirm footprints and final measurement ranges before fitting. |
+| 17 | IMU | MPU6050 IMU 6DOF GY-521 | 1 | [Hshop](https://hshop.vn/cam-bien-6-dof-bac-tu-do-gy-521-mpu6050) | 85000 | Replaces ICM-42688 for prototype. I²C; 3-axis gyro and accelerometer. Calibrate stationary gyro bias and combine with encoders. Keep I²C signals at 3.3V. |
+| 18 | Battery connectors | AMASS XT60H male/female pair with protective caps | 2 | [Supplier](https://www.linhkientot.vn/products/cap-giac-noi-dien-xt60h-duc-cai-jack-noi-nguon-dien-pin) | 22000 | Per complete male/female pair; quantity 2 means two pairs. |
+| 19 | Main battery fuse holder | 16AWG inline standard automotive fuse holder | 1 | [Supplier](https://dientutuyetnga.com/products/16awg-de-cau-chi-o-to-chong-nuoc-standard-fuses) | 15000 | Holder only; fuse rating and price pending. |
+| 20 | Motor fuse holders | 16AWG inline standard automotive fuse holder | 2 | [Supplier](https://dientutuyetnga.com/products/16awg-de-cau-chi-o-to-chong-nuoc-standard-fuses) | 15000 | Per holder; one per motor branch. Fuses excluded; finalize ratings and placement with wiring design. |
+| 21 | Motor power switch | 12V 20A advertised rocker switch | 1 | [Supplier](https://lamchucongnghe.com/cong-tac-bap-benh-chong-nuoc-2-vi-tri-co-led-12v-20a) | 14900 | Candidate; verify actual DC contact rating before using for motor-power disconnection. |
+| 22 | Power wiring | 18AWG silicone wire; red and black | 1 | [Red](https://dientutuyetnga.com/products/day-dien-chiu-nhiet-silicon-sieu-mem-18awg-do); [Black](https://dientutuyetnga.com/products/day-dien-chiu-nhiet-silicon-sieu-mem-18awg-den) | 30000 | Set combines one red sale unit and one black sale unit; confirm supplied lengths. |
+| 23 | Signal wiring | 40-piece female-female 20cm jumper pack | 1 | [Hshop](https://hshop.vn/Day-Cam-Breadboard-cai-cai-20cm-cap-det-40-soi-F-F-Jumper-Wire) | 30000 | For signals; motor connectors/harnesses cost extra if absent from motors. |
+| 24 | Assembly supplies | PCB, terminals, heat-shrink, and cable ties | 1 | [PCB](https://dientutuyetnga.com/products/board-dong-duc-lo-pcb-5x7cm); [Terminals](https://nshopvn.com/product/domino-kf301-2p-5-08/); [Heat-shrink](https://dientutuyetnga.com/products/hop-530-ong-gen-co-nhiet); [Cable ties](https://mangnhuatudien.com/day-thit-day-rut/) | 90000 | Combined price: one 5×7cm PCB, five KF301-2P terminals, one 530-piece heat-shrink box, and 100 cable ties; separate purchases. |
+| 25 | USB data cable | UGREEN 60518 USB-C to USB-C 1m | 1 | [Hshop](https://hshop.vn/cap-usb-c-to-usb-c-dai-1m-ho-tro-pd-60w-cao-cap-60518-chinh-hang-ugreen) | 115000 | Confirm laptop and ESP32 ports; skip if a compatible data cable is available. |
+| 26 | Bumper switches | Omron SS-5GL lever microswitch | 3 | [Supplier](https://vattudientu.vn/ss5gl-cong-tac-hanh-trinh-5a-omron-co-tay-gat-thanglimit-switch-p39849821.html) | 14000 | Per switch; requires bumper actuation and mounts. |
+| 27 | Bumper structure | Custom movable bumper and switch mounts | 1 | [Fabrication service](https://imaker.vn/dich-vu-in-3d-cat-laser-mica) | QUOTE | Design and quote pending; switches priced separately in ID 26. |
+| 28 | Distance sensors | VL53L0X TOF200C breakout | 2 | [Hshop](https://hshop.vn/cam-bien-khoang-cach-tof-laser-radar-vl53l0x) | 115000 | Confirm accessible XSHUT pins so sensors can receive distinct I²C addresses. |
+| 29 | Buzzer | MKE-M03 active buzzer module | 1 | [Hshop](https://hshop.vn/mach-coi-bao-mke-m03-buzzer-module) | 25000 | Listed as 5V supply with 3.3V-compatible control; connection cable included. |
+| 30 | Status indicator | MKE-M01 LED module | 1 | [Hshop](https://hshop.vn/mach-led-don-mke-m01-1-led-10mm-rgybw-module) | 20000 | Select colour; listed as 5V supply with 3.3V-compatible control. |
+
+### Budget
+
+**Priced-item subtotal: 2,215,860₫**, calculated as quantity × quoted unit/set price. The owned ESP32-S3 contributes 0₫.
+
+This is not the finished robot cost. It excludes chassis and bumper fabrication, actual fuses, delivery, connector adaptations, missing harnesses, dock hardware, any additional mapping sensor, test equipment, and the laptop. Reusing the USB cable reduces the subtotal by 115,000₫.
+
+## Qualification blockers
+
+### Motor and driver compatibility
+
+The exact stall current of the selected Đức Huy 60RPM motor is unknown. The supplied references are not measurements of that motor:
+
+- [Open Impulse's JGA25-370 selector](https://www.openimpulse.com/blog/jga25-370-gearmotor-selector/) was reported to list 1.2A stall current for its own 12V variants.
+- [Hshop's 280RPM motor listing](https://hshop.vn/dong-co-ga25-370-dc-servo-geared-motor-12v-280rpm) was reported to list 1.8A maximum loaded current, without explicitly identifying it as stall current.
+
+Neither value qualifies the selected motor. The MKE-M18's advertised 3A/channel must also be distinguished from the reported BD62130 recommended 2.4A maximum DC, with thermal constraints. Obtain the actual module documentation and qualify both channels together before accepting the pairing.
+
+Record supply voltage, no-load current, startup current, representative loaded current, temperature, and encoder response. Obtain stall-current evidence from the supplier or a controlled, current-limited test procedure; do not use an unrestricted battery stall as the qualification method.
+
+### Power and protection
+
+- The provisional 3S pack reaches 12.6V when full, within the stated MKE-M18 8–13V supply range. That comparison alone does not qualify the complete power system.
+- Check combined motor and electronics demand against the pack's advertised 5A continuous/10A peak ratings.
+- Finalize fuse values, wire routing, connector polarity, and motor-power disconnection after characterizing the actual load.
+- Confirm charger current, battery charge limits, connector dimensions, and polarity before charging.
+- Resolve how USB power and the external 5V rail connect to the exact ESP32-S3 board before using both.
+- Define low-battery thresholds and verify them under load; the selected pack and protection behavior remain provisional.
+
+### Measurement and bus integration
+
+- Confirm INA240 module availability, shunt footprint, reference configuration, output range, and ESP32 ADC compatibility before buying or modifying modules. The 0.01Ω shunts are candidates, not a validated measurement design.
+- Check INA226 shunt resistance, calibration, and total-current range.
+- Resolve the stated MKE-M18 default I²C address of `0x40` against the INA226 configuration.
+- Confirm both VL53L0X boards expose XSHUT and define their startup/address-assignment sequence.
+- Verify breakout pull-ups and signal voltage levels across the shared I²C bus. Check motor encoder voltage levels and pinout before connecting to ESP32 inputs.
+
+### Mechanical integration
+
+Before fabrication, measure the actual motor shaft, adapter engagement, wheel/bracket clearances, and caster mounting height. The chassis and bumper drawings must include battery retention, wiring access, switch mounting, and bumper travel. Dock interface dimensions remain undecided and must be considered before freezing the chassis.
+
+## Hardware preparation sequence
+
+1. **Qualify the drive pair.** Obtain the actual motors and MKE-M18 documentation; characterize current, encoder behavior, both-channel operation, and command-loss stopping.
+2. **Finalize the power design.** Select compatible battery/charger connections, fuses, disconnect hardware, and logic-power wiring using measured demand.
+3. **Qualify the sensors.** Resolve current-sensor availability and ranges, voltage levels, I²C addresses, and calibration requirements.
+4. **Complete mechanical drawings.** Measure real parts, design the chassis and movable bumper, then obtain fabrication quotes.
+5. **Assemble and validate the mobile base.** Begin with wheels raised; progress to supervised low-speed floor tests after stop behavior is verified.
+6. **Choose the dock approach.** Specify guidance, contacts, alignment tolerance, charge detection, and electrical integration before attempting autonomous charging.
+
+Software simulation can proceed separately. Its motor, sensor, battery, and docking assumptions must remain explicit until hardware measurements are available.
+
+## Validation checklist
+
+These are planned checks, not completed results. Numerical limits and pass criteria still need to be set from component documentation and measurements.
+
+- [ ] Confirm actual motor model, shaft dimensions, encoder pinout, signal levels, and cable contents.
+- [ ] Characterize both motors and demonstrate acceptable driver current and temperature under representative combined load.
+- [ ] Demonstrate stopping when laptop commands cease and when ESP32-to-driver communication is interrupted.
+- [ ] Verify power polarity, regulated 5V output, fuse selection, and physical motor-power disconnection.
+- [ ] Validate battery and motor current readings against a reference measurement across the intended range.
+- [ ] Confirm stable encoder, IMU, distance-sensor, and bumper readings while motors operate.
+- [ ] Demonstrate fault reporting and a safe stopped state before implementing automatic recovery.
+- [ ] Define recovery limits, retry counts, and stop conditions; verify that retries cannot continue indefinitely.
+- [ ] Complete chassis and bumper fit checks before fabrication approval.
+- [ ] Define a repeatable docking test with starting position, alignment error, battery state, and actual charging confirmation recorded.
+
+## Open decisions
+
+| Decision | Evidence or work needed |
+| --- | --- |
+| Final motor/driver pairing | Actual motor current and combined-load qualification |
+| Final battery, charger, connectors, and fuses | Load measurements and completed power wiring design |
+| Motor-current measurement circuit | Available modules, confirmed shunts, reference voltage, and ADC range |
+| Chassis and bumper | Measured parts, drawings, material selection, and quotes |
+| Dock hardware and charging integration | Guidance method, contact design, alignment strategy, and charge confirmation |
+| Mapping sensor | Minimum navigation needs and budget |
+| Firmware and simulation stack | Interfaces and implementation choices; not specified in this hardware brief |
+
+No build, flashing, or simulation commands are defined by the supplied brief. Add reproducible setup instructions when those implementations exist.
