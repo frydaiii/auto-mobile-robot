@@ -19,16 +19,44 @@ The first milestone is a dependable drive and power platform with useful fault t
 | --- | --- | --- |
 | Controller | ESP32-S3, already owned | Exact development-board pinout and power arrangement |
 | Higher-level autonomy | Laptop for initial development | Communication protocol and loss-of-link behavior |
-| Drive | Two JGA25-370 brushed DC motors, 12V, approximately 60RPM, A/B encoders | Actual stall current, encoder signals, cables, and mechanical fit |
+| Drive | Two GA25-370 brushed DC motors, 12V, approximately 60RPM, A/B encoders | Actual stall current, encoder signals, cables, and mechanical fit |
 | Motor driver | One MKE-M18, two channels, I²C | Combined motor load, thermal behavior, and command-timeout stopping |
 | Mechanics | Two 65mm drive wheels, shaft adapters, GA25 brackets, 25mm caster | Chassis layout, mounting heights, bumper travel, and fabrication quotes |
 | Battery | Provisional protected 3S 3000mAh Li-ion pack | Current capacity, connectors, protection behavior, and charger compatibility |
 | Logic power | XL4015 buck, adjusted to 5V | Output stability and ESP32 board power connection |
 | Feedback | Two INA240A1 modules, INA226, MPU6050, two VL53L0X sensors, three bumper switches | Shunts, signal levels, calibration, addresses, and mounting |
 | Charging station | Undecided | Dock guidance, contacts, alignment, charge detection, and electrical integration |
-| Mapping | Supporting capability; sensor undecided | Sensor choice and minimum navigation requirements |
+| Mapping | LDROBOT LD14 360° scanning LiDAR | Confirm USB adapter, mounting position, and ROS 2 scan data |
 
 **Recorded selection changes:** MKE-M18 replaces XY-160D at BOM ID 10. MPU6050 GY-521 replaces ICM-42688 at BOM ID 17; the BOM takes precedence over the older IMU reference in the brief.
+
+## Hardware by stage
+
+### Stage 1 — Drive manually and draw a map
+
+Use the ESP32-S3, two 12V 60RPM encoder motors, MKE-M18, chassis, wheels, caster, protected power system, and laptop. Add one LDROBOT LD14 with its four-pin cable and compatible USB adapter. The GY-521 is optional for the first map. The [motor selected for this build](https://www.thegioiic.com/ga25-370-dong-co-giam-toc-co-encoder-12vdc-60rpm-truc-4mm) is the GA25-370 with a 4mm shaft. BOM ID 2 retains the earlier alternative supplier quote for budgeting.
+
+Adapt the [Linorobot2 base firmware](https://github.com/linorobot/linorobot2_hardware) to send timed wheel commands through the MKE-M18. Verify encoder direction, counts per wheel revolution, and stopping on lost commands. Run the [LD14 ROS 2 driver](https://github.com/ldrobotSensorTeam/ldlidar_ros2) and SLAM Toolbox on the laptop. Drive a loop and check that the walls align on the saved map.
+
+### Stage 2 — Navigate on the saved map
+
+Reuse the Stage 1 hardware. Arrange power and connectivity for untethered operation. Use localization and Nav2 to reach a marked approach point in front of the future dock from several starting positions. Check the final heading as well as position.
+
+### Stage 3 — Dock and confirm charging
+
+Add mating contacts, mechanical guides, and a charger matched to the battery. Use battery telemetry to trigger the return. The two TOF200Cs (ID 28) are optional aids for comparing left and right gaps during the final approach. Test lateral centering separately. Verify charging with a charger status signal or the INA226 (ID 14) installed in the charging or battery path. Test both a successful charge and a missed contact.
+
+### Stage 4 — Detect failures and recover
+
+| Fault | Feedback and expected response |
+| --- | --- |
+| Lost drive commands | Interrupt updates with the wheels raised. Verify both motor outputs turn off within the required time, including while the shared bus remains stuck. |
+| Wheel commanded but stationary | Use the existing encoders to detect the fault, stop both wheels, and report the affected side. Optional INA240A1 modules and shunts (IDs 15–16) add individual motor-current measurements. |
+| Collision | Use the bumper and switches (IDs 26–27) to detect contact and stop. |
+| Missing LiDAR scans | Stop autonomous motion until fresh scans arrive and localization is valid. |
+| Failed charging contact | Back out and realign. Bound retries, then stop and report the fault. |
+
+The buzzer and LED (IDs 29–30) are optional local fault indicators.
 
 ## System responsibilities
 
@@ -46,6 +74,10 @@ Prices below are the **last supplied quotes**, in VND per unit or set, excluding
 
 The maintained spreadsheet format is TSV with these columns, in this order: `Id`, `Component`, `Name`, `Quantity`, `URL`, `Price`, `Note`. Keep IDs stable when changing a component. Multiple URLs in one cell are separated by semicolons.
 
+### Stage 1 — Drive manually and draw a map
+
+Includes the charger for manual battery charging and the optional IMU.
+
 | Id | Component | Name | Quantity | URL | Price | Note |
 | --- | --- | --- | ---: | --- | ---: | --- |
 | 1 | Controller | ESP32-S3 | 1 | [Reference](https://www.espressif.com/en/products/socs/esp32-s3) | 0 | Already owned; reference URL, not a purchase listing. |
@@ -61,9 +93,6 @@ The maintained spreadsheet format is TSV with these columns, in this order: `Id`
 | 11 | Battery | MTM 3S 3000mAh protected Li-ion pack | 1 | [Supplier](https://maybommini.vn/?product=khoi-pin-sac-li-ion-12v-3-0ah-10a-3s-mtm-jack-nguon-dc-5-5x21mm) | 220000 | Provisional; advertised 5A continuous/10A peak. Confirm combined demand. Supplied DC connector needs XT60 adaptation at extra cost. |
 | 12 | Charger | 3S Li-ion 12.6V 2A CC/CV charger | 1 | [Supplier](https://dientutuonglai.com/adapter-sac-pin-3s-126v-2a.html) | 70000 | Confirm charge-current compatibility, connector dimensions, and polarity with final battery. |
 | 13 | Logic power supply | XL4015 adjustable buck converter | 1 | [Hshop](https://hshop.vn/mach-giamop-dc-xl4015-5a-cu-chinh-dung) | 45000 | Set and measure output at 5V before connecting electronics. |
-| 14 | Battery monitor | CJMCU-226 INA226 | 1 | [Supplier](https://dientutuyetnga.com/products/cjmcu-226-cam-bien-dong-ina226) | 63000 | Check shunt resistance and total-current range; replacement/calibration may be needed. Use an I²C address different from MKE-M18 default 0x40. |
-| 15 | Motor current sensor | INA240A1 module | 2 | [Supplier](https://www.thegioiic.com/ina240a1-mach-cam-bien-dong-20v-v) | 111720 | Previously out of stock. One per motor; supplied 0.1Ω shunt needs modification. Configure bidirectional reference and ESP32 ADC scaling. |
-| 16 | Shunt resistors | 0.01Ω 2512 3W 1%; pack of 5 | 1 | [Supplier](https://linhkien.cxtvn.com/8825-dien-tro-001r-2512-3w-1-5c.html) | 5000 | Five resistors per pack; confirm footprints and final measurement ranges before fitting. |
 | 17 | IMU | MPU6050 IMU 6DOF GY-521 | 1 | [Hshop](https://hshop.vn/cam-bien-6-dof-bac-tu-do-gy-521-mpu6050) | 85000 | Replaces ICM-42688 for prototype. I²C; 3-axis gyro and accelerometer. Calibrate stationary gyro bias and combine with encoders. Keep I²C signals at 3.3V. |
 | 18 | Battery connectors | AMASS XT60H male/female pair with protective caps | 2 | [Supplier](https://www.linhkientot.vn/products/cap-giac-noi-dien-xt60h-duc-cai-jack-noi-nguon-dien-pin) | 22000 | Per complete male/female pair; quantity 2 means two pairs. |
 | 19 | Main battery fuse holder | 16AWG inline standard automotive fuse holder | 1 | [Supplier](https://dientutuyetnga.com/products/16awg-de-cau-chi-o-to-chong-nuoc-standard-fuses) | 15000 | Holder only; fuse rating and price pending. |
@@ -73,23 +102,51 @@ The maintained spreadsheet format is TSV with these columns, in this order: `Id`
 | 23 | Signal wiring | 40-piece female-female 20cm jumper pack | 1 | [Hshop](https://hshop.vn/Day-Cam-Breadboard-cai-cai-20cm-cap-det-40-soi-F-F-Jumper-Wire) | 30000 | For signals; motor connectors/harnesses cost extra if absent from motors. |
 | 24 | Assembly supplies | PCB, terminals, heat-shrink, and cable ties | 1 | [PCB](https://dientutuyetnga.com/products/board-dong-duc-lo-pcb-5x7cm); [Terminals](https://nshopvn.com/product/domino-kf301-2p-5-08/); [Heat-shrink](https://dientutuyetnga.com/products/hop-530-ong-gen-co-nhiet); [Cable ties](https://mangnhuatudien.com/day-thit-day-rut/) | 90000 | Combined price: one 5×7cm PCB, five KF301-2P terminals, one 530-piece heat-shrink box, and 100 cable ties; separate purchases. |
 | 25 | USB data cable | UGREEN 60518 USB-C to USB-C 1m | 1 | [Hshop](https://hshop.vn/cap-usb-c-to-usb-c-dai-1m-ho-tro-pd-60w-cao-cap-60518-chinh-hang-ugreen) | 115000 | Confirm laptop and ESP32 ports; skip if a compatible data cable is available. |
+| 31 | Mapping LiDAR | LDROBOT LD14 | 1 | [Shopee](https://shopee.vn/product/18248080/45116934321) | 390000 | Lowest advertised variant. Confirm cable, USB adapter, availability, and delivered price. |
+
+Priced items in this stage total **1,997,420₫**.
+
+### Stage 2 — Navigate on the saved map
+
+Reuse the Stage 1 hardware. No additional BOM items are allocated to navigation.
+
+### Stage 3 — Dock and confirm charging
+
+Reuse the Stage 1 battery and charger. Dock contacts, guides, and station fabrication still need quotes. The TOF200Cs are optional alignment aids.
+
+| Id | Component | Name | Quantity | URL | Price | Note |
+| --- | --- | --- | ---: | --- | ---: | --- |
+| 14 | Battery monitor | CJMCU-226 INA226 | 1 | [Supplier](https://dientutuyetnga.com/products/cjmcu-226-cam-bien-dong-ina226) | 63000 | Check shunt resistance and total-current range; replacement/calibration may be needed. Use an I²C address different from MKE-M18 default 0x40. |
+| 28 | Distance sensors | VL53L0X TOF200C breakout | 2 | [Hshop](https://hshop.vn/cam-bien-khoang-cach-tof-laser-radar-vl53l0x) | 115000 | Confirm accessible XSHUT pins so sensors can receive distinct I²C addresses. |
+
+Priced items in this stage total **293,000₫**.
+
+### Stage 4 — Detect failures and recover
+
+The motor-current sensors and shunts are optional diagnostics. The buzzer and LED are optional indicators.
+
+| Id | Component | Name | Quantity | URL | Price | Note |
+| --- | --- | --- | ---: | --- | ---: | --- |
+| 15 | Motor current sensor | INA240A1 module | 2 | [Supplier](https://www.thegioiic.com/ina240a1-mach-cam-bien-dong-20v-v) | 111720 | Previously out of stock. One per motor; supplied 0.1Ω shunt needs modification. Configure bidirectional reference and ESP32 ADC scaling. |
+| 16 | Shunt resistors | 0.01Ω 2512 3W 1%; pack of 5 | 1 | [Supplier](https://linhkien.cxtvn.com/8825-dien-tro-001r-2512-3w-1-5c.html) | 5000 | Five resistors per pack; confirm footprints and final measurement ranges before fitting. |
 | 26 | Bumper switches | Omron SS-5GL lever microswitch | 3 | [Supplier](https://vattudientu.vn/ss5gl-cong-tac-hanh-trinh-5a-omron-co-tay-gat-thanglimit-switch-p39849821.html) | 14000 | Per switch; requires bumper actuation and mounts. |
 | 27 | Bumper structure | Custom movable bumper and switch mounts | 1 | [Fabrication service](https://imaker.vn/dich-vu-in-3d-cat-laser-mica) | QUOTE | Design and quote pending; switches priced separately in ID 26. |
-| 28 | Distance sensors | VL53L0X TOF200C breakout | 2 | [Hshop](https://hshop.vn/cam-bien-khoang-cach-tof-laser-radar-vl53l0x) | 115000 | Confirm accessible XSHUT pins so sensors can receive distinct I²C addresses. |
 | 29 | Buzzer | MKE-M03 active buzzer module | 1 | [Hshop](https://hshop.vn/mach-coi-bao-mke-m03-buzzer-module) | 25000 | Listed as 5V supply with 3.3V-compatible control; connection cable included. |
 | 30 | Status indicator | MKE-M01 LED module | 1 | [Hshop](https://hshop.vn/mach-led-don-mke-m01-1-led-10mm-rgybw-module) | 20000 | Select colour; listed as 5V supply with 3.3V-compatible control. |
 
+Priced items in this stage total **315,440₫**.
+
 ### Budget
 
-**Priced-item subtotal: 2,215,860₫**, calculated as quantity × quoted unit/set price. The owned ESP32-S3 contributes 0₫.
+**Priced-item subtotal: 2,605,860₫**, calculated as quantity × quoted unit/set price. The owned ESP32-S3 contributes 0₫.
 
-This is not the finished robot cost. It excludes chassis and bumper fabrication, actual fuses, delivery, connector adaptations, missing harnesses, dock hardware, any additional mapping sensor, test equipment, and the laptop. Reusing the USB cable reduces the subtotal by 115,000₫.
+This is not the finished robot cost. It excludes chassis and bumper fabrication, actual fuses, delivery, connector adaptations, missing harnesses, dock hardware, any extra LD14 cable or USB adapter cost, test equipment, and the laptop. Reusing the USB cable reduces the subtotal by 115,000₫.
 
 ## Qualification blockers
 
 ### Motor and driver compatibility
 
-The exact stall current of the selected Đức Huy 60RPM motor is unknown. The supplied references are not measurements of that motor:
+The exact stall current of the selected TheGioiIC 60RPM motor is unknown. The supplied references are not measurements of that motor:
 
 - [Open Impulse's JGA25-370 selector](https://www.openimpulse.com/blog/jga25-370-gearmotor-selector/) was reported to list 1.2A stall current for its own 12V variants.
 - [Hshop's 280RPM motor listing](https://hshop.vn/dong-co-ga25-370-dc-servo-geared-motor-12v-280rpm) was reported to list 1.8A maximum loaded current, without explicitly identifying it as stall current.
@@ -154,7 +211,7 @@ These are planned checks, not completed results. Numerical limits and pass crite
 | Motor-current measurement circuit | Available modules, confirmed shunts, reference voltage, and ADC range |
 | Chassis and bumper | Measured parts, drawings, material selection, and quotes |
 | Dock hardware and charging integration | Guidance method, contact design, alignment strategy, and charge confirmation |
-| Mapping sensor | Minimum navigation needs and budget |
+| LD14 integration | Verify the cable and USB adapter, scan orientation, and saved-map alignment |
 | Firmware and simulation stack | Interfaces and implementation choices; not specified in this hardware brief |
 
 No build, flashing, or simulation commands are defined by the supplied brief. Add reproducible setup instructions when those implementations exist.
