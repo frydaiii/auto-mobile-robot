@@ -14,5 +14,6 @@ setup(
     description='Manual driving and mapping simulation bringup', license='Apache-2.0',
     entry_points={'console_scripts': [
         'command_gate = amr_bringup.command_gate_node:main',
+        'hardware_feedback = amr_bringup.hardware_feedback_node:main',
     ]},
 )

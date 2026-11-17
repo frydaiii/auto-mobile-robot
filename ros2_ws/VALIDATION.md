@@ -1,5 +1,42 @@
 # Stage 1 execution evidence
 
+## Hardware simulation extension — native Ubuntu, 2026-11-17
+
+ROS 2 Lyrical / Gazebo Jetty, isolated `ROS_DOMAIN_ID=88` and
+`GZ_PARTITION=amr_hw_validation`, headless GUI/RViz disabled. These are software
+simulation checks, not hardware measurements. This section supersedes the older
+360-ray scan and test-count statements below.
+
+- All three packages built, including the new C++ `amr_bumper_state` plugin.
+- 25 pytest tests passed; measured Python statement/branch coverage was 95.35%,
+  above the configured 90% floor. The C++ plugin is outside Python coverage;
+  its contact/clear behavior was exercised in the headless run.
+- Fresh `/scan` (383 rays, minimum 0.15 m), `/map`, `/imu/data_raw`, both range
+  topics, encoder counts and all three bumper states were received.
+- Combined forward/turn request of 0.15 m/s and 0.6 rad/s changed measured wheel
+  encoder counts; maximum observed wheel speed was 59.999999995 RPM.
+- Raw IMU orientation was marked unavailable; stationary Z acceleration was
+  approximately 9.79 m/s² in a sampled noisy reading.
+- Added a static box at (-1.35, -2), with the robot reset to (-2, -2).
+  Front ToF readings were approximately 0.45436 m on both sides before approach.
+  A straight approach made contact with the physical bumper geometry. Despite
+  continuing forward commands, `/cmd_vel_safe` became zero and measured forward
+  speed fell below 0.02 m/s.
+- Conversion tests caught and fixed sdformat's collision-name rewriting.
+  Native Contact sends only nonempty events; the custom plugin supplies 50 Hz
+  snapshots, including clear states, and latches impacts between snapshots.
+- Unit and real ROS tests cover command loss and bumper feedback loss with
+  simulation time paused, contact release requiring a new command, named-wheel
+  encoder quantization, malformed feedback, sim-time reversal and Range
+  infinity conventions. They do not prove realistic optical or motor dynamics.
+
+Shutdown still reproduces the upstream bridge SIGINT crash (signal 11) and
+Gazebo's delayed shutdown requiring SIGTERM. Diagnostic processes were stopped;
+no real hardware was commanded. Rendering extensions/root-inertia warnings also
+remain. SLAM emits a minimum-range comparison warning due to float32 rounding
+of 0.15 m in LaserScan versus the double parameter (printed as 0.2 versus 0.1
+with one decimal); it clamps to the received sensor limit.
+
 Tested 2026-11-17 in WSL Ubuntu 26.04.1 LTS x86-64 with ROS 2 Lyrical
 and Gazebo Sim 10 (Jetty). This is simulation validation only.
 

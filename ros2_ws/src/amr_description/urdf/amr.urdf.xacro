@@ -20,6 +20,29 @@
   <xacro:arg name="lidar_z" default="0.130"/>
   <xacro:arg name="lidar_mass" default="0.10"/>
   <xacro:arg name="wheel_friction" default="1.0"/>
+  <xacro:arg name="max_wheel_rpm" default="60.0"/>
+  <xacro:arg name="imu_x" default="-0.020"/>
+  <xacro:arg name="imu_y" default="0.0"/>
+  <xacro:arg name="imu_z" default="0.090"/>
+  <xacro:arg name="imu_rate" default="100"/>
+  <xacro:arg name="imu_gyro_noise" default="0.001"/>
+  <xacro:arg name="imu_accel_noise" default="0.02"/>
+  <xacro:arg name="imu_gyro_bias" default="0.0005"/>
+  <xacro:arg name="imu_accel_bias" default="0.01"/>
+  <xacro:arg name="tof_x" default="0.146"/>
+  <xacro:arg name="tof_y" default="0.070"/>
+  <xacro:arg name="tof_z" default="0.085"/>
+  <xacro:arg name="tof_yaw" default="0.2617993878"/>
+  <xacro:arg name="tof_rate" default="20"/>
+  <xacro:arg name="tof_fov" default="0.4363323130"/>
+  <xacro:arg name="tof_min" default="0.03"/>
+  <xacro:arg name="tof_max" default="2.0"/>
+  <xacro:arg name="bumper_x" default="0.150"/>
+  <xacro:arg name="bumper_y" default="0.075"/>
+  <xacro:arg name="bumper_z" default="0.065"/>
+  <xacro:arg name="bumper_width" default="0.070"/>
+  <xacro:arg name="bumper_rate" default="50"/>
+  <xacro:arg name="bumper_plugin_path" default="libamr_bumper_state.so"/>
   <xacro:property name="r" value="$(arg wheel_radius)"/>
   <xacro:property name="w" value="$(arg wheel_width)"/>
   <xacro:property name="sep" value="$(arg wheel_separation)"/>
@@ -88,6 +111,92 @@
   </joint>
   <gazebo reference="caster_joint"><preserveFixedJoint>true</preserveFixedJoint></gazebo>
   <gazebo reference="caster_link"><mu1>0.001</mu1><mu2>0.001</mu2></gazebo>
+  <!-- Small sensor mounts and switch zones are provisional geometry/mass. -->
+  <xacro:macro name="sensor_mount" params="name xyz rpy mass:=0.005">
+    <link name="${name}_link">
+      <inertial><mass value="${mass}"/>
+        <inertia ixx="0.000001" ixy="0" ixz="0" iyy="0.000001" iyz="0" izz="0.000001"/>
+      </inertial>
+      <visual><geometry><box size="0.012 0.012 0.006"/></geometry>
+        <material name="sensor_green"><color rgba="0.1 0.8 0.2 1"/></material>
+      </visual>
+    </link>
+    <joint name="${name}_joint" type="fixed">
+      <parent link="base_link"/><child link="${name}_link"/>
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+    </joint>
+    <gazebo reference="${name}_joint"><preserveFixedJoint>true</preserveFixedJoint></gazebo>
+  </xacro:macro>
+  <xacro:sensor_mount name="imu" xyz="$(arg imu_x) $(arg imu_y) $(arg imu_z)" rpy="0 0 0"/>
+  <xacro:macro name="imu_axis">
+    <noise type="gaussian"><mean>0</mean><stddev>$(arg imu_gyro_noise)</stddev>
+      <bias_mean>$(arg imu_gyro_bias)</bias_mean><bias_stddev>0</bias_stddev>
+    </noise>
+  </xacro:macro>
+  <xacro:macro name="accel_axis">
+    <noise type="gaussian"><mean>0</mean><stddev>$(arg imu_accel_noise)</stddev>
+      <bias_mean>$(arg imu_accel_bias)</bias_mean><bias_stddev>0</bias_stddev>
+    </noise>
+  </xacro:macro>
+  <gazebo reference="imu_link">
+    <sensor name="mpu6050" type="imu">
+      <topic>/sim/imu</topic><gz_frame_id>imu_link</gz_frame_id>
+      <always_on>true</always_on><update_rate>$(arg imu_rate)</update_rate>
+      <imu>
+        <angular_velocity><x><xacro:imu_axis/></x><y><xacro:imu_axis/></y><z><xacro:imu_axis/></z></angular_velocity>
+        <linear_acceleration><x><xacro:accel_axis/></x><y><xacro:accel_axis/></y><z><xacro:accel_axis/></z></linear_acceleration>
+      </imu>
+    </sensor>
+  </gazebo>
+  <xacro:macro name="tof" params="side sign">
+    <xacro:sensor_mount name="tof_${side}" xyz="$(arg tof_x) ${sign*float('$(arg tof_y)')} $(arg tof_z)"
+                       rpy="0 0 ${sign*float('$(arg tof_yaw)')}"/>
+    <gazebo reference="tof_${side}_link">
+      <sensor name="vl53l0x_${side}" type="gpu_lidar">
+        <topic>/sim/tof/${side}</topic><gz_frame_id>tof_${side}_link</gz_frame_id>
+        <always_on>true</always_on><update_rate>$(arg tof_rate)</update_rate><visualize>false</visualize>
+        <lidar>
+          <scan><horizontal><samples>9</samples><resolution>1</resolution>
+            <min_angle>${-float('$(arg tof_fov)')/2}</min_angle>
+            <max_angle>${float('$(arg tof_fov)')/2}</max_angle>
+          </horizontal></scan>
+          <range><min>$(arg tof_min)</min><max>$(arg tof_max)</max><resolution>0.001</resolution></range>
+        </lidar>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+  <xacro:tof side="left" sign="1"/>
+  <xacro:tof side="right" sign="-1"/>
+  <xacro:macro name="bumper" params="side sign">
+    <link name="bumper_${side}_link">
+      <inertial><mass value="0.010"/>
+        <inertia ixx="0.00001" ixy="0" ixz="0" iyy="0.00001" iyz="0" izz="0.00001"/>
+      </inertial>
+      <visual><geometry><box size="0.020 $(arg bumper_width) 0.040"/></geometry>
+        <material name="bumper_orange"><color rgba="1 0.5 0.05 1"/></material>
+      </visual>
+      <collision name="bumper_${side}_collision"><geometry><box size="0.020 $(arg bumper_width) 0.040"/></geometry></collision>
+    </link>
+    <joint name="bumper_${side}_joint" type="fixed">
+      <parent link="base_link"/><child link="bumper_${side}_link"/>
+      <origin xyz="$(arg bumper_x) ${sign*float('$(arg bumper_y)')} $(arg bumper_z)"/>
+    </joint>
+    <gazebo reference="bumper_${side}_joint"><preserveFixedJoint>true</preserveFixedJoint></gazebo>
+    <gazebo reference="bumper_${side}_link">
+      <sensor name="bumper_${side}" type="contact">
+        <topic>/sim/contact_events/${side}</topic><always_on>true</always_on>
+        <update_rate>$(arg bumper_rate)</update_rate>
+        <!-- sdformat prefixes collision names even with preserved fixed joints. -->
+        <contact>
+          <collision>bumper_${side}_link_fixed_joint_lump__bumper_${side}_collision_collision</collision>
+          <topic>/sim/contact_events/${side}</topic>
+        </contact>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+  <xacro:bumper side="left" sign="1"/>
+  <xacro:bumper side="center" sign="0"/>
+  <xacro:bumper side="right" sign="-1"/>
   <link name="lidar_link">
     <inertial><mass value="${lm}"/>
       <inertia ixx="${lm*0.001}" ixy="0" ixz="0" iyy="${lm*0.001}" iyz="0" izz="${lm*0.001}"/>
@@ -101,19 +210,28 @@
   </joint>
   <gazebo reference="lidar_joint"><preserveFixedJoint>true</preserveFixedJoint></gazebo>
   <gazebo reference="lidar_link">
-    <!-- Simulation settings, NOT validated LD14 specifications. -->
+    <!-- LDROBOT LD14 (not LD14P), datasheet v1.5, section 2.3:
+         6 revolutions/s, 2300 measurements/s, 0.15-8 m range.
+         383 rays/revolution approximates 2300/6 (2298 measurements/s).
+         Uniform, instantaneous rays do not model rolling-scan distortion,
+         distance-dependent measurement error or target reflectivity.
+         Source: https://make.net.za/wp-content/datasheets/LDROBOT%20LD14%20Datasheet%20v1.5%20-%20Translated.pdf -->
     <sensor name="lidar" type="gpu_lidar">
       <topic>/scan</topic><gz_frame_id>lidar_link</gz_frame_id>
-      <always_on>true</always_on><update_rate>10</update_rate><visualize>false</visualize>
+      <always_on>true</always_on><update_rate>6</update_rate><visualize>false</visualize>
       <lidar>
-        <scan><horizontal><samples>360</samples><resolution>1</resolution>
-          <min_angle>${-pi}</min_angle><max_angle>${pi}</max_angle>
+        <scan><horizontal><samples>383</samples><resolution>1</resolution>
+          <!-- Exclude the duplicate endpoint of the full revolution. -->
+          <min_angle>${-pi}</min_angle><max_angle>${pi - 2*pi/383}</max_angle>
         </horizontal></scan>
-        <range><min>0.12</min><max>8.0</max><resolution>0.01</resolution></range>
+        <range><min>0.15</min><max>8.0</max><resolution>0.01</resolution></range>
       </lidar>
     </sensor>
   </gazebo>
   <gazebo>
+    <plugin filename="$(arg bumper_plugin_path)" name="amr_simulation::BumperState">
+      <rate>$(arg bumper_rate)</rate>
+    </plugin>
     <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
       <left_joint>left_wheel_joint</left_joint><right_joint>right_wheel_joint</right_joint>
       <wheel_separation>${sep}</wheel_separation><wheel_radius>${r}</wheel_radius>

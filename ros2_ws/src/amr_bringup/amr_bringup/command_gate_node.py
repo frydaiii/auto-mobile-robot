@@ -1,11 +1,13 @@
 """Only this node forwards user commands to the simulated drive."""
 import time
+from functools import partial
 
 import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
+from std_msgs.msg import Bool
 
 from amr_bringup.command_gate import CommandGate
 
@@ -16,18 +18,27 @@ class CommandGateNode(Node):
         self.gate = CommandGate(**{
             name: self.declare_parameter(name, default).value
             for name, default in (
-                ('linear_limit', 0.15), ('angular_limit', 0.6), ('timeout', 0.5))
+                ('linear_limit', 0.15), ('angular_limit', 0.6), ('timeout', 0.5),
+                ('wheel_radius', 0.0325), ('wheel_separation', 0.220),
+                ('max_wheel_rpm', 60.0), ('require_bumpers', True),
+                ('bumper_timeout', 0.5))
         })
         qos = QoSProfile(depth=1)
         self.publisher = self.create_publisher(Twist, '/cmd_vel_safe', qos)
         self.subscription = self.create_subscription(
             Twist, '/cmd_vel', self.receive, qos)
+        self.bumper_subscriptions = [self.create_subscription(
+            Bool, f'/bumper/{side}', partial(self.receive_bumper, side), qos)
+            for side in ('left', 'center', 'right')]
         # Expire even while Gazebo is paused. ROS nodes still use sim time.
         self.timer = self.create_timer(
             0.02, self.publish_command, clock=Clock(clock_type=ClockType.STEADY_TIME))
 
     def receive(self, message):
         self.gate.receive(message.linear.x, message.angular.z, time.monotonic())
+
+    def receive_bumper(self, side, message):
+        self.gate.receive_bumper(side, message.data, time.monotonic())
 
     def publish_command(self):
         message = Twist()

@@ -4,6 +4,7 @@ import time
 import pytest
 import rclpy
 from geometry_msgs.msg import Twist
+from std_msgs.msg import Bool
 from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy._rclpy_pybind11 import InvalidHandle
 from rclpy.parameter import Parameter
@@ -23,6 +24,11 @@ def test_ros_gate_expires_without_sim_clock_and_recovers():
     subscription = peer.create_subscription(
         Twist, '/cmd_vel_safe', received.append, 10)
     publisher = peer.create_publisher(Twist, '/cmd_vel', 10)
+    bumper_publishers = {s: peer.create_publisher(Bool, f'/bumper/{s}', 10)
+                         for s in ('left', 'center', 'right')}
+    bumper_states = {s: False for s in bumper_publishers}
+    bumper_timer = peer.create_timer(0.05, lambda: [
+        p.publish(Bool(data=bumper_states[s])) for s, p in bumper_publishers.items()])
 
     def until(predicate, timeout=5.0):
         end = time.monotonic() + timeout
@@ -42,9 +48,11 @@ def test_ros_gate_expires_without_sim_clock_and_recovers():
               and subscription.get_publisher_count() == 1)
         until(lambda: bool(received))
         assert received[-1] == Twist()
-        send(2.0, -3.0)
-        until(lambda: received[-1].linear.x == 0.15)
-        assert received[-1].angular.z == -0.6
+        command_timer = peer.create_timer(0.05, lambda: send(2.0, -3.0))
+        until(lambda: received[-1].linear.x > 0)
+        command_timer.cancel()
+        assert received[-1].linear.x == pytest.approx(0.1418080017245393)
+        assert received[-1].angular.z == pytest.approx(-0.5672320068981572)
         assert received[-1].linear.y == 0.0
         until(lambda: received[-1] == Twist(), timeout=2.0)
         # No /clock publisher: ROS time stays paused, steady watchdog still fires.
@@ -53,6 +61,25 @@ def test_ros_gate_expires_without_sim_clock_and_recovers():
         until(lambda: received[-1].linear.x == -0.1)
         send(float('nan'), 0.1)
         until(lambda: received[-1] == Twist())
+        send(0.1, 0.0)
+        until(lambda: received[-1].linear.x == 0.1)
+        bumper_states['center'] = True
+        until(lambda: received[-1] == Twist())
+        send(0.1, 0.0)
+        bumper_states['center'] = False
+        # Wait for a clear feedback callback, then require a new command.
+        cleared = []
+        clear_subscription = peer.create_subscription(
+            Bool, '/bumper/center', lambda m: cleared.append(not m.data), 10)
+        until(lambda: bool(cleared) and cleared[-1])
+        assert received[-1] == Twist()
+        send(0.1, 0.0)
+        until(lambda: received[-1].linear.x == 0.1)
+        bumper_timer.cancel()
+        # Keep commands fresh while feedback expires, with sim time still paused.
+        active_timer = peer.create_timer(0.05, lambda: send(0.1, 0.0))
+        until(lambda: received[-1] == Twist(), timeout=2.0)
+        active_timer.cancel()
     finally:
         executor.shutdown()
         peer.destroy_node()
