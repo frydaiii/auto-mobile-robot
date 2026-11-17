@@ -1,0 +1,12 @@
+build/
+install/
+log/
+maps/
+__pycache__/
+.pytest_cache/
+*.pyc
+.superpowers/
+.venv/
+.coverage
+coverage.xml
+htmlcov/

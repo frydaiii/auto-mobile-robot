@@ -6,6 +6,133 @@ A low-cost indoor mobile robot built with parts available in Vietnam, focused on
 
 ## Goals
 
+## Stage 1 simulation — manual driving and mapping
+
+The `ros2_ws` colcon workspace targets **Ubuntu 26.04 x86-64, ROS 2 Lyrical,
+Gazebo Jetty, SLAM Toolbox and RViz**. See the official
+[ROS installation instructions](https://docs.ros.org/en/lyrical/Installation/Ubuntu-Install-Debs.html)
+and [Gazebo/ROS pairing](https://gazebosim.org/docs/jetty/ros_installation/).
+Install ROS first, then:
+
+```bash
+sudo apt update
+sudo apt install ros-lyrical-desktop ros-lyrical-ros-gz ros-lyrical-slam-toolbox \
+  ros-lyrical-nav2-map-server ros-lyrical-xacro ros-lyrical-teleop-twist-keyboard \
+  python3-colcon-common-extensions python3-rosdep python3-pytest
+sudo rosdep init  # once per machine; skip if already initialized
+rosdep update
+source /opt/ros/lyrical/setup.bash
+cd ros2_ws
+rosdep install --from-paths src --ignore-src -r -y --rosdistro lyrical
+colcon build --symlink-install
+colcon test --python-testing pytest
+colcon test-result --verbose
+source install/setup.bash
+ros2 launch amr_bringup mapping.launch.py
+```
+
+Run the coverage suite from `ros2_ws` after building and sourcing both setup
+files (no Gazebo instance is needed):
+
+```bash
+sudo apt install python3-coverage
+ROS_DOMAIN_ID=87 python3 -m coverage run -m pytest src/amr_bringup/test && \
+  python3 -m coverage report && python3 -m coverage html
+```
+
+The report enforces a 90% minimum with branch measurement enabled. It covers
+all application Python modules and the mapping launch file; packaging metadata,
+tests, XML/YAML/RViz assets and upstream ROS/Gazebo code are outside the code
+coverage denominator. Open `ros2_ws/htmlcov/index.html` for the detailed report.
+Use an unused ROS domain ID to isolate the real ROS messaging tests from other
+robot sessions. The suite checks command limits/expiry, ROS forwarding with a
+paused simulation clock, malformed commands, entrypoint cleanup, and GUI/headless
+launch construction. Code coverage does not measure simulated map accuracy or
+prove clean shutdown of upstream processes.
+
+Disable either window with `gui:=false` or `rviz:=false`. With both disabled,
+Gazebo still renders the GPU LiDAR using headless rendering; an EGL-capable
+GPU or Mesa software renderer is required. All world geometry is bundled;
+no Fuel model downloads are needed. Stop the launch with Ctrl+C before relaunching.
+
+In a second terminal, source both setup files, then drive:
+
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args \
+  -p use_sim_time:=true -p stamped:=false -p speed:=0.15 -p turn:=0.6 \
+  -p repeat_rate:=10.0 -p key_timeout:=0.2
+```
+
+Use `i` forward, `,` reverse, `j`/`l` rotate and `k` stop. The command gate
+clamps `/cmd_vel` (`Twist`) to ±0.15 m/s and ±0.6 rad/s, forwarding only
+`/cmd_vel_safe` to Gazebo. It publishes zero after 0.5 seconds without a fresh
+command, checked every 20 ms using a steady clock even when simulation is paused.
+This is a simulation command-loss guard, not hardware emergency stopping.
+
+The robot starts at world (-2, -2), heading +X. Follow the clear perimeter
+counterclockwise through approximately (2, -2), (2, 2), (-2, 2), and back to
+(-2, -2); pause at corners and revisit obstacles from multiple angles. Compare
+overlapping wall edges in RViz: the acceptance tolerance is 0.15 m (three map
+cells). These are validation instructions, not a claim of measured map quality.
+
+Save after the map has updated:
+
+```bash
+mkdir -p maps
+ros2 run nav2_map_server map_saver_cli -f maps/indoor --fmt pgm --ros-args \
+  -p use_sim_time:=true -p save_map_timeout:=10.0
+```
+
+This creates `maps/indoor.yaml` and `maps/indoor.pgm` for Stage 2. To inspect the
+saved occupancy map separately, stop mapping and run:
+
+```bash
+ros2 run nav2_map_server map_server --ros-args -p yaml_filename:="$PWD/maps/indoor.yaml" \
+  -p use_sim_time:=false
+# Another sourced terminal:
+ros2 lifecycle set /map_server configure
+ros2 lifecycle set /map_server activate
+```
+
+Compare `/map` metadata (resolution 0.05, dimensions and origin) and occupied
+cells before/after reload; map saving thresholds can quantize uncertain cells.
+Navigation is outside this stage.
+
+Packages: `amr_description` owns Xacro geometry, `amr_simulation` owns the 6 × 6 m
+world and bridges, and `amr_bringup` owns launch, command gating, SLAM and RViz.
+Xacro arguments expose chassis dimensions/mass, wheel geometry/mass/friction,
+caster geometry/mass and LiDAR position/mass. Defaults assume 65 mm wheels,
+220 mm wheel separation and a 280 × 220 mm chassis. The caster is approximated
+by a low-friction sphere. These physical properties are unmeasured assumptions.
+The simulated LiDAR uses 360 samples at 10 Hz and 0.12–8 m range; these are
+simulation settings, not validated LD14 specifications.
+
+All ROS simulation nodes use simulation time. `/clock`, `/scan`, `/odom`,
+`/joint_states` and `/map` are bridged/published using standard message types.
+Gazebo DiffDrive integrates wheel joint motion for odometry; simulator pose
+must only be used for independent validation. TF ownership is exclusive:
+SLAM publishes `map → odom`, DiffDrive publishes `odom → base_link`, and
+robot-state publishing supplies wheel and `base_link → lidar_link` transforms.
+
+Check live data with `ros2 topic hz /scan`, `ros2 topic echo /joint_states --once`,
+`ros2 topic echo /odom --once`, and `ros2 run tf2_ros tf2_echo map lidar_link`.
+Use `ros2 topic info /odom -v` and `/tf` to inspect publishers; `/tf` legitimately
+has multiple publishers for different edges. Forward must increase odom X;
+positive rotation must increase yaw. Kill keyboard teleop while moving and
+verify `/cmd_vel_safe` becomes zero and wheel motion stops. Repeat after a
+clean shutdown and with `gui:=false`.
+
+If scans are missing, inspect Gazebo rendering errors and try Mesa with
+`LIBGL_ALWAYS_SOFTWARE=1`; headless mode still needs rendering libraries. If
+RViz scans are absent, use Best Effort reliability; map and robot-description
+topics use Transient Local durability. If transforms are missing, check clock,
+scan frame `lidar_link`, joint feedback and that only one launch is running.
+If packages are missing, rerun rosdep and source `install/setup.bash` in every
+terminal. Detailed execution evidence and pending checks are recorded in
+[`ros2_ws/VALIDATION.md`](ros2_ws/VALIDATION.md).
+
+## Hardware project goals
+
 - Detect a low battery, reach the charging station, align with it, and confirm charging.
 - Detect motion failures, collisions, and communication loss; stop safely and attempt bounded recovery when appropriate.
 - Use a two-wheel differential-drive platform with a caster, wheel encoders, and inexpensive sensors.

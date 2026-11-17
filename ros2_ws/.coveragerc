@@ -1,0 +1,14 @@
+[run]
+branch = True
+source =
+    src/amr_bringup/amr_bringup
+    src/amr_bringup/launch
+relative_files = True
+
+[report]
+fail_under = 90
+show_missing = True
+precision = 2
+
+[html]
+directory = htmlcov
