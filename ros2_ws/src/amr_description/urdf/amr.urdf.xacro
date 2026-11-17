@@ -224,7 +224,8 @@
           <!-- Exclude the duplicate endpoint of the full revolution. -->
           <min_angle>${-pi}</min_angle><max_angle>${pi - 2*pi/383}</max_angle>
         </horizontal></scan>
-        <range><min>0.15</min><max>8.0</max><resolution>0.01</resolution></range>
+        <!-- Temporarily limit the simulated LD14 to 3 m. -->
+        <range><min>0.15</min><max>3.0</max><resolution>0.01</resolution></range>
       </lidar>
     </sensor>
   </gazebo>

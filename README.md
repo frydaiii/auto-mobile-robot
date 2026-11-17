@@ -136,7 +136,8 @@ specifications: 6 Hz, 360° coverage, and 0.15–8 m range, from the
 [LD14 datasheet v1.5, section 2.3](https://make.net.za/wp-content/datasheets/LDROBOT%20LD14%20Datasheet%20v1.5%20-%20Translated.pdf).
 Its 383 uniformly spaced rays per revolution approximate the specified
 2,300 measurements/s (383 × 6 = 2,298/s), with no duplicate endpoint.
-SLAM uses the same minimum and maximum ranges. Gazebo's 0.01 m range
+The simulation is temporarily capped at 3 m, with SLAM using the same limit.
+Gazebo's 0.01 m range
 resolution is a simulation setting, not the LD14's measurement accuracy.
 Scans are idealized and instantaneous: distance-dependent error, target
 reflectivity, sunlight interference and rolling-scan distortion are not modeled.
