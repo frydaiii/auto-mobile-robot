@@ -8,6 +8,23 @@ A low-cost indoor mobile robot built with parts available in Vietnam, focused on
 
 ## Stage 1 simulation — manual driving and mapping
 
+The repository includes the Codex skill
+[run-amr-project](.agents/skills/run-amr-project/SKILL.md). Open this checkout in
+Codex and request `$run-amr-project` to launch it. The skill travels with the
+repository under `.agents/skills`; no personal skill installation is required.
+On another machine, install the dependencies below and build first. The runner
+resolves the workspace from its own location and supports Ubuntu or Windows/WSL:
+
+```bash
+# From the repository root, in Ubuntu (two terminals):
+bash .agents/skills/run-amr-project/scripts/run.sh launch
+bash .agents/skills/run-amr-project/scripts/run.sh keyboard
+# Optional headless launch:
+bash .agents/skills/run-amr-project/scripts/run.sh launch gui:=false rviz:=false
+```
+
+Runner portability checks: `python3 -m unittest discover -s tests` from the root.
+
 The `ros2_ws` colcon workspace targets **Ubuntu 26.04 x86-64, ROS 2 Lyrical,
 Gazebo Jetty, SLAM Toolbox and RViz**. See the official
 [ROS installation instructions](https://docs.ros.org/en/lyrical/Installation/Ubuntu-Install-Debs.html)
@@ -102,6 +119,10 @@ Packages: `amr_description` owns Xacro geometry, `amr_simulation` owns the 6 × 
 world and bridges, and `amr_bringup` owns launch, command gating, SLAM and RViz.
 Xacro arguments expose chassis dimensions/mass, wheel geometry/mass/friction,
 caster geometry/mass and LiDAR position/mass. Defaults assume 65 mm wheels,
+with `chassis_com_x=-0.040` m placing the chassis mass behind the drive axle
+so that the robot rests on both wheels and the rear caster without tipping.
+The mass centre must remain inside that support triangle when changing masses.
+Other defaults are
 220 mm wheel separation and a 280 × 220 mm chassis. The caster is approximated
 by a low-friction sphere. These physical properties are unmeasured assumptions.
 The simulated LiDAR uses 360 samples at 10 Hz and 0.12–8 m range; these are

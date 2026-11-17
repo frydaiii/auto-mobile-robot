@@ -1,0 +1,4 @@
+interface:
+  display_name: "Run AMR Project"
+  short_description: "Run this checkout's ROS simulation and keyboard controls"
+  default_prompt: "Use $run-amr-project to run this project's simulation and keyboard controls."

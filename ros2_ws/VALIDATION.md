@@ -5,6 +5,18 @@ and Gazebo Sim 10 (Jetty). This is simulation validation only.
 
 ## Passed
 
+- RViz motion investigation: the original total centre of mass was 0.196 mm
+  ahead of the wheel axle, outside the rear-caster support triangle. Gazebo
+  measured a forward pitch of 18.5 degrees, tilting the scan toward the floor.
+  With `chassis_com_x=-0.040`, the robot stays level (pitch approximately
+  -0.000087 degrees). In a repeated straight drive, odometry advanced 1.27485 m
+  and the `map -> base_link` transform used by RViz advanced 1.27485 m, with
+  negligible lateral drift. Previously map-frame X advanced only 0.446 m for
+  1.274 m of odometry and SLAM introduced spurious lateral/heading correction.
+  A default-model mass-centre regression test failed before the fix and passed
+  afterward. Suite now contains 13 passing tests; Python coverage remains 100%.
+  This corrects the physical model and does not establish full-loop accuracy.
+
 - Expanded automated suite: 12 tests passed on the same Ubuntu/ROS target.
   Coverage.py measured 100% of 73 executable statements and all 10 branches
   across `command_gate.py`, `command_gate_node.py`, and `mapping.launch.py`.
