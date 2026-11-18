@@ -9,12 +9,18 @@ esac
 amr_repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 amr_run_workspace="${AMR_WORKSPACE:-$amr_repo_root/ros2_ws}"
 amr_ros_setup="${AMR_ROS_SETUP:-/opt/ros/lyrical/setup.bash}"
-if [[ ! -f "$amr_ros_setup" || ! -f "$amr_run_workspace/install/setup.bash" ]]; then
-  echo "ROS or workspace setup missing. Install ROS and build $amr_run_workspace first (see README)." >&2
+if [[ ! -f "$amr_ros_setup" ]]; then
+  echo "ROS setup missing at $amr_ros_setup. Install ROS first (see README)." >&2
   exit 1
 fi
 source "$amr_ros_setup"
 cd -- "$amr_run_workspace"
+if [[ "$mode" == launch ]]; then
+  colcon build --symlink-install
+elif [[ ! -f install/setup.bash ]]; then
+  echo "Workspace setup missing. Run run.sh launch first to build $amr_run_workspace." >&2
+  exit 1
+fi
 source install/setup.bash
 if [[ "$mode" == launch ]]; then
   # WSL RViz needs X11; allow an explicit platform override.

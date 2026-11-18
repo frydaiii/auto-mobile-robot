@@ -15,8 +15,12 @@ This workflow controls simulation; it does not authorize real hardware motion.
 
 Inspect current processes first (`ps -eo pid,args` on Ubuntu). Reuse an existing
 mapping launch from this checkout instead of starting duplicate simulators,
-bridges or teleop publishers. Start only missing components. If needed build
-`ros2_ws` with `colcon build --symlink-install` after sourcing ROS.
+bridges or teleop publishers. Start only missing components.
+
+The helper sources ROS and runs `colcon build --symlink-install` before every
+launch. This creates the workspace install on first run and registers files
+added after a pull or branch switch, such as `config/hardware.yaml`. It sources
+the rebuilt workspace before starting ROS and stops if the build fails.
 
 On native Ubuntu, from the repository root:
 
@@ -50,7 +54,8 @@ do not silently switch a requested GUI run to headless.
 
 ## Keyboard control
 
-Open a separate visible terminal and execute the same helper with `keyboard`.
+After the launch build completes, open a separate visible terminal and execute
+the same helper with `keyboard`. It uses the existing workspace install.
 On Windows, use `Start-Process wsl.exe` with `-WindowStyle Normal` and arguments
 `-d <distro> -- bash "<Linux-script-path>" keyboard` correctly quoted for the
 actual path. `wt.exe new-tab` previously returned without keeping teleop alive.

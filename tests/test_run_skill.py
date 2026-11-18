@@ -23,6 +23,14 @@ class RunSkillTest(unittest.TestCase):
             (workspace / 'install/setup.bash').write_text('export AMR_TEST_OVERLAY=loaded\n')
             binary = root / 'bin'
             binary.mkdir()
+            colcon = binary / 'colcon'
+            colcon.write_text(
+                '#!/bin/bash\n'
+                '[[ "$*" == "build --symlink-install" ]] || exit 2\n'
+                'mkdir -p install\n'
+                'echo "export AMR_TEST_OVERLAY=built" > install/setup.bash\n'
+            )
+            colcon.chmod(0o755)
             ros2 = binary / 'ros2'
             ros2.write_text('#!/bin/bash\nprintf "%s\\n" "$PWD" "$AMR_TEST_OVERLAY" "$QT_QPA_PLATFORM" "$@"\n')
             ros2.chmod(0o755)
@@ -35,11 +43,13 @@ class RunSkillTest(unittest.TestCase):
                                         cwd='/tmp', env=env, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn(str(workspace), result.stdout)
-                self.assertIn('loaded', result.stdout)
                 if mode == 'launch':
+                    self.assertIn('built', result.stdout)
                     self.assertIn('mapping.launch.py\ngui:=false\nrviz:=false', result.stdout)
                     self.assertIn('xcb', result.stdout)
+                    (workspace / 'install/setup.bash').write_text('export AMR_TEST_OVERLAY=loaded\n')
                 else:
+                    self.assertIn('loaded', result.stdout)
                     self.assertIn('teleop_twist_keyboard', result.stdout)
                     self.assertIn('speed:=0.15', result.stdout)
 
