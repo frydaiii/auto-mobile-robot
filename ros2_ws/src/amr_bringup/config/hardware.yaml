@@ -1,0 +1,37 @@
+# Hardware-model defaults. Unmeasured values are simulation assumptions.
+robot:
+  wheel_radius: 0.0325
+  wheel_separation: 0.220
+  max_wheel_rpm: 60.0
+  imu_x: -0.020
+  imu_y: 0.0
+  imu_z: 0.090
+  imu_rate: 100
+  # SI units: gyro rad/s, acceleration m/s^2; illustrative, not calibrated MPU6050 data.
+  imu_gyro_noise: 0.001
+  imu_accel_noise: 0.02
+  imu_gyro_bias: 0.0005
+  imu_accel_bias: 0.01
+  tof_x: 0.146
+  tof_y: 0.070
+  tof_z: 0.085
+  tof_yaw: 0.2617993878  # +/-15 degrees, outward
+  tof_rate: 20
+  tof_fov: 0.4363323130  # 25 degrees; planar fan approximation
+  tof_min: 0.03         # Provisional usable near limit, not a guaranteed hardware spec
+  tof_max: 2.0          # Nominal maximum under favorable target/ambient conditions
+  bumper_x: 0.150
+  bumper_y: 0.075
+  bumper_z: 0.065
+  bumper_width: 0.070
+  bumper_rate: 50
+hardware_feedback:
+  ros__parameters:
+    encoder_counts_per_revolution: 1440  # Quadrature edges at wheel; unverified placeholder
+command_gate:
+  ros__parameters:
+    linear_limit: 0.15
+    angular_limit: 0.6
+    timeout: 0.5
+    require_bumpers: true
+    bumper_timeout: 0.5

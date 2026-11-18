@@ -82,7 +82,13 @@ ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args \
 
 Use `i` forward, `,` reverse, `j`/`l` rotate and `k` stop. The command gate
 clamps `/cmd_vel` (`Twist`) to ±0.15 m/s and ±0.6 rad/s, forwarding only
-`/cmd_vel_safe` to Gazebo. It publishes zero after 0.5 seconds without a fresh
+`/cmd_vel_safe` to Gazebo. Combined commands are then scaled together to keep
+each wheel at or below the motor's nominal 60 RPM, preserving turn curvature.
+At the default wheel size, a 0.15 m/s + 0.6 rad/s request becomes approximately
+0.1418 m/s + 0.5672 rad/s. Fresh, clear feedback from all three bumpers is
+required: contact or feedback older than 0.5 seconds blocks motion. Releasing
+a bumper requires a new command. Keyboard repeat counts as a new command;
+release the driving key after a collision. The gate publishes zero after 0.5 seconds without a fresh
 command, checked every 20 ms using a steady clock even when simulation is paused.
 This is a simulation command-loss guard, not hardware emergency stopping.
 
@@ -125,8 +131,67 @@ The mass centre must remain inside that support triangle when changing masses.
 Other defaults are
 220 mm wheel separation and a 280 × 220 mm chassis. The caster is approximated
 by a low-friction sphere. These physical properties are unmeasured assumptions.
-The simulated LiDAR uses 360 samples at 10 Hz and 0.12–8 m range; these are
-simulation settings, not validated LD14 specifications.
+The simulated LiDAR follows the **LDROBOT LD14 (not LD14P)** nominal scan
+specifications: 6 Hz, 360° coverage, and 0.15–8 m range, from the
+[LD14 datasheet v1.5, section 2.3](https://make.net.za/wp-content/datasheets/LDROBOT%20LD14%20Datasheet%20v1.5%20-%20Translated.pdf).
+Its 383 uniformly spaced rays per revolution approximate the specified
+2,300 measurements/s (383 × 6 = 2,298/s), with no duplicate endpoint.
+The simulation is temporarily capped at 3 m, with SLAM using the same limit.
+Gazebo's 0.01 m range
+resolution is a simulation setting, not the LD14's measurement accuracy.
+Scans are idealized and instantaneous: distance-dependent error, target
+reflectivity, sunlight interference and rolling-scan distortion are not modeled.
+LiDAR mounting, shape and mass remain provisional simulation assumptions.
+
+### Simulated drive and feedback hardware
+
+The simulation now includes motor speed limits and hardware-style feedback.
+Defaults live in [`hardware.yaml`](ros2_ws/src/amr_bringup/config/hardware.yaml).
+Mounting positions, update rates, IMU noise/bias and encoder resolution are
+configurable. To use a separate configuration file:
+
+```bash
+bash .agents/skills/run-amr-project/scripts/run.sh launch hardware_config:=/absolute/path/hardware.yaml
+```
+
+| Hardware | ROS output | Default simulation behavior |
+| --- | --- | --- |
+| GA25-370 drive pair | `/joint_states`, `/odom` | 60 RPM wheel speed ceiling; measured joint rotation feeds odometry |
+| A/B encoders | `/encoder_ticks` (`std_msgs/Int64MultiArray`) | Signed cumulative left/right ticks, rounded from measured joint angles; 1,440 quadrature edges per wheel revolution is an **unverified placeholder** |
+| MPU6050 GY-521 | `/imu/data_raw` (`sensor_msgs/Imu`) | Central mount, 100 Hz accelerometer and gyro with configurable Gaussian noise and static bias |
+| Two VL53L0X | `/range/left`, `/range/right` (`sensor_msgs/Range`) | Front left/right, angled outward 15°, 20 Hz; 25° planar fan with nine rays, provisional 0.03 m minimum and nominal 2 m maximum |
+| Three SS-5GL bumper zones | `/bumper/left`, `/bumper/center`, `/bumper/right` (`std_msgs/Bool`) | Left/center/right along the front, physical contact zones with 50 Hz contact/clear snapshots |
+
+Encoder array order is left then right, also named in its dimension label.
+Counts start at zero on the first valid joint sample and reset when simulation
+time moves backward or the feedback node restarts. Tick messages do not carry
+timestamps; `/joint_states` retains stamped positions/velocities in radians.
+The MPU6050-style output marks orientation unavailable (`orientation_covariance[0]
+= -1`); simulator ground-truth orientation is not exposed as a measurement.
+Acceleration includes the gravity-related stationary reading (approximately
++9.81 m/s² on Z when upright). Raw bridged sensor inputs use `/sim/...` topics.
+
+The ToF model selects the nearest return in a horizontal fan. It approximates
+the real sensor's three-dimensional field of view and can miss objects between
+the rays. No return is `+inf`; a below-minimum return is `-inf`. The
+[ST VL53L0X datasheet](https://www.st.com/resource/en/datasheet/vl53l0x.pdf)
+specifies a 25° field of view and ranging up to 2 m under suitable conditions;
+the simulated rate and near limit are selected defaults, not guarantees of
+the physical breakout's performance.
+
+Gazebo's native contact system supplies collision data. The bundled
+`amr_bumper_state` plugin also publishes clear states and latches brief impacts
+until the next snapshot. It withholds snapshots if required contact components
+are missing. Bumper feedback freshness is measured on ROS receipt using a steady
+clock; it assumes local transport is timely, not replayed. Paused simulation
+stops snapshots, so driving remains blocked until feedback resumes.
+
+Motor torque, acceleration, electrical response and encoder pulse timing are
+not modeled; the drive still uses Gazebo's ideal velocity controller. IMU values
+are not calibrated MPU6050 noise specifications, and ADC quantization, sensor
+saturation, temperature drift, ToF reflectivity/sunlight effects, switch bounce
+and flexible bumper mechanics are not modeled. These limits support software
+testing and do not qualify the actual hardware.
 
 All ROS simulation nodes use simulation time. `/clock`, `/scan`, `/odom`,
 `/joint_states` and `/map` are bridged/published using standard message types.

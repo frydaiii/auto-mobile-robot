@@ -19,9 +19,11 @@ def test_mapping_launch_connects_installed_assets(gui, rviz):
     spec.loader.exec_module(module)
     description = module.generate_launch_description()
     args = [a for a in description.entities if isinstance(a, DeclareLaunchArgument)]
-    assert {a.name for a in args} == {'gui', 'rviz'}
+    assert {a.name for a in args} == {'gui', 'rviz', 'hardware_config'}
     context = LaunchContext()
     context.launch_configurations.update(gui=gui, rviz=rviz)
+    context.launch_configurations['hardware_config'] = str(
+        Path(__file__).parents[1] / 'config/hardware.yaml')
     actions = module.launch_setup(context)
     includes = [a for a in actions if isinstance(a, IncludeLaunchDescription)]
     gz_args = dict(includes[0].launch_arguments)['gz_args']
